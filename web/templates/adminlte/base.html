@@ -1,0 +1,164 @@
+{% load static %}
+
+<!DOCTYPE html>
+<html>
+<head>
+    {% block title_outer %}
+        <title>{% block title %} DumbTV {% endblock %}</title>
+    {% endblock %}
+
+    {% block meta %}
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-COMPATIBLE" content="IE=edge">
+        <meta content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" name="viewport">
+    {% endblock %}
+
+    {% block stylesheets %}
+        {% include 'adminlte/lib/_styles.html' %}
+        <style type="text/css">
+            .product-description {
+                white-space:normal !important;
+            }
+            td>input {
+                width:100%;
+            }
+        </style>
+    {% endblock %}
+
+    {% block javascript %}
+        {% include 'adminlte/lib/_scripts.html' %}
+        <script>
+            function csrfSafeMethod(method) {
+                return (/^(GET|HEAD|OPTIONS|TRACE)$/.test(method));
+            }
+            function getCookie(name) {
+                var cookieValue = null;
+                if (document.cookie && document.cookie !== '') {
+                    var cookies = document.cookie.split(';');
+                    for (var i = 0; i < cookies.length; i++) {
+                        var cookie = jQuery.trim(cookies[i]);
+                        // Does this cookie string begin with the name we want?
+                        if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                            cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                            break;
+                        }
+                    }
+                }
+                return cookieValue;
+            }       
+            $.ajaxSetup({
+                beforeSend: function(xhr, settings) {
+                    if (!csrfSafeMethod(settings.type) && !this.crossDomain) {
+                        xhr.setRequestHeader("X-CSRFToken", getCookie('csrftoken'));
+                    }
+                }
+            });   
+            
+            function showMessage(m, t) {
+                var msgType = ( t == "e" ) ? "danger" : ( t == "s" ) ? "success" : "info";
+                var element = "body";
+                alert(m);
+                //$.notify(
+                //    { message: m },
+                //    { type: msgType, delay: 3000, mouse_over: 'pause', offset: { x: 15, y: 65 }, element: element }
+                //);
+            };
+            
+            function apiCall(data, successCallback, failedCallback, silent){
+                if (typeof successCallback === "undefined" || successCallback === null) {
+                    successCallback = undefined;
+                }
+                if (typeof failedCallback === "undefined" || failedCallback === null) {
+                    failedCallback = undefined;
+                }
+                if (typeof silent === "undefined" || silent === null) {
+                    silent = false;
+                }
+                if(silent === false){ $("#panelWorking").show(); }
+                $.ajax({
+                    url: "/api",
+                    type: "POST",
+                    data: (data),
+                    dataType: "json",
+                    success: function(data) {
+                            if(data.status == "OK") {
+                                if(successCallback != undefined){
+                                    successCallback(data);
+                                }
+                            }else{ 
+                                if(failedCallback != undefined){
+                                    failedCallback(data);
+                                }else{
+                                    showMessage( data.message, "e");
+                                }
+                            }
+                            if(silent === false){ $("#panelWorking").hide(); }
+                        },
+                    error: function() { 
+                        if(silent === false){ $("#panelWorking").hide(); }
+                        if(failedCallback != undefined){
+                            failedCallback(data);
+                        }else{
+                            //showMessage( "error", "e"); 
+                        }
+                    }
+                });
+            }            
+            function cleanstring(string){
+                return string.replace(/ *\[[^\]]*]/g, "");
+            }
+    
+        </script>    
+   
+    {% endblock javascript %}    
+    
+    {% block extra_head %}{% endblock %}
+</head>
+
+<body class="hold-transition skin-yellow  {% block body_class %}{% block bodyclass %}{% endblock %}{% endblock %}">
+    {% block body %}
+        <div class="wrapper">
+            {% block nav_header %}
+                {% include 'adminlte/lib/_main_header.html' %}
+            {% endblock %}
+            {% block content_wrapper %}
+
+                <div class="content-wrapper" {% block content_wrapper_divextra %}{% endblock %} style="margin-left:0px;">
+                    {% block content_header %}
+                        <section class="content-header">
+                            <h1>
+                                {% block page_name %}{% endblock %}
+                                {% block no_description %}
+                                <small>{% block page_description %}{% endblock %}</small>
+                                {% endblock %}
+                            </h1>
+                            {% block breadcrumbs %}
+                                {# Breadcrumb implementation left to developers #}
+                            {% endblock %}
+                        </section>
+                    {% endblock %}
+
+                    {% block content_outer %}
+                    <section class="content">
+                        {% block messages %}
+                            {% include 'adminlte/lib/_messages.html' %}
+                        {% endblock %}
+
+                        {% block content_block_wrap %}
+                            {% block content %}{% endblock %}
+                        {% endblock %}
+                    </section>
+                    {% endblock %}
+                </div>
+
+            {% endblock content_wrapper %}
+
+            {% block nav_footer %}
+                <!-- {% include 'adminlte/lib/_main_footer.html' %} -->
+            {% endblock %}
+
+        </div>
+    {% endblock body %}
+    {% block extra_foot %}{% endblock %}
+</body>
+</html>

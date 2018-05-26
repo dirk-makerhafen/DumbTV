@@ -1,0 +1,320 @@
+{% extends 'adminlte/base.html' %}
+
+{% block content_header %}
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/video.js/6.9.0/video.min.js"></script>
+
+    <script src="https://unpkg.com/flv.js/dist/flv.min.js"></script>
+    <script src="https://unpkg.com/videojs-flvjs/dist/videojs-flvjs.min.js"></script>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/videojs-contrib-hls/5.14.1/videojs-contrib-hls.min.js"></script>
+        
+    <link href="http://vjs.zencdn.net/6.6.3/video-js.css" rel="stylesheet">                    
+    
+    <script>
+        var overlay_timeout = undefined;
+        var overlay_titel_timeout = undefined;
+
+       
+       
+        function PlayerClass(targetdivname){
+            
+            
+            var self = this;
+            self.targetdivname = targetdivname;
+
+            
+            
+            self.jsplayer = videojs(targetdivname)
+            self.playback_started = false; // playback was successfully started at some point
+            self.playing = false; // is currently playing
+            self.playbacktime = 0;
+            self.playbacktime_lastupdate = 0;
+            self.playbacktime_lastsend = 0;
+            self.playbacktime_lastsendvalue = 0;
+            self.playbacktime_sleeptime = 5000;
+            
+            self.jsplayer.on('fullscreenchange', function() {
+                if(self.jsplayer.isFullscreen()){
+                    $(".navbar").hide();
+                    $("#my-video").css("height", "calc(100vh - 0px)", "!important");
+                    $("#my-video_html5_api").css("height", "calc(100vh - 0px)", "!important");
+                }else{
+                    $(".navbar").show();
+                    $("#my-video").css("height", "calc(100vh - 50px)", "!important");
+                    $("#my-video_html5_api").css("height", "calc(100vh - 50px)", "!important");
+                }
+            });
+            
+            self.jsplayer.on('play', function() {
+                self.jsplayer.currentTime(Player.startposition);
+            });
+            
+            self.jsplayer.on('ended', function() {
+                self.playing = false;
+                if(self.data.currentvideo.id != undefined){
+                    apiCall({ api: "upcoming", command: "endVideo", upcoming_id : self.data.currentvideo.id}, self.playcurrent, undefined, true);
+                }
+            });
+            
+            self.jsplayer.on(['waiting', 'pause'], function() {
+                self.playing = false;
+            });
+            
+            self.jsplayer.on('playing', function() {
+                self.playing = true;
+            });
+            
+            self.jsplayer.on('error', function() {
+                self.playing = false;
+                $("#overlay-error").html("Failed to play<br>Switching to next video");
+                if(self.data.currentvideo.id != undefined){
+                    apiCall({ api: "upcoming", command: "skipVideoOnError", upcoming_id : self.data.currentvideo.id}, self.skipCurrentVideo_success, undefined, true);
+                }
+            });
+            self.jsplayer.on('timeupdate', function() {
+                if(self.playback_started === false ){
+                    self.playback_started = true;
+                    apiCall({ api: "stats", command: "playbackStarted", upcoming_id : self.data.currentvideo.id}, undefined, undefined, true);
+                }
+                currentTime = Date.now()
+                diffupdate = currentTime - self.playbacktime_lastupdate 
+                if(diffupdate < 1000){ // if longer 1 second we paused on the way
+                    self.playbacktime += diffupdate;
+                }
+                self.playbacktime_lastupdate = currentTime;
+                
+                if(self.playbacktime > 3000){
+                    diffsend = currentTime - self.playbacktime_lastsend;
+                    if(diffsend > self.playbacktime_sleeptime){
+                        var value = Math.floor((self.playbacktime - self.playbacktime_lastsendvalue) / 1000)
+                        self.playbacktime_lastsend = currentTime;
+                        self.playbacktime_lastsendvalue = self.playbacktime;
+                        if(self.playbacktime_sleeptime < 180000){
+                            self.playbacktime_sleeptime += 5000;
+                        }
+                        apiCall({ api: "stats", command: "playbackDuration", upcoming_id : self.data.currentvideo.id, value : value }, undefined,undefined, true);
+                    }
+                }
+            });                     
+            
+            self.startposition = 0;
+            self.playbackurl = "";
+            
+            self.current_channel_index = parseInt(localStorage.getItem('current_channel_index'));
+            if(isNaN(self.current_channel_index)){
+                self.current_channel_index = 1;
+            }
+            
+            self.playcurrent = function(){
+                //current_channel_id = Channels.get_by_index(self.current_channel_index).id
+                apiCall({ api: "channels", command: "getCurrentVideo", "channel_index" : self.current_channel_index,}, self.playcurrent_success, self.playcurrent_failed, true);
+            }
+            
+            self.playcurrent_failed = function(data){
+                if(self.current_channel_index > 1){
+                    self.current_channel_index -= 1;
+                    localStorage.setItem('current_channel_index', self.current_channel_index);
+                    self.playcurrent();
+                }
+            }
+            
+            self.skipCurrentVideo = function(){
+                if(self.data.currentvideo.id != undefined){
+                    $("#overlay-error").html("Skipping..");
+                    apiCall({ api: "upcoming", command: "skipVideo", upcoming_id : self.data.currentvideo.id}, self.skipCurrentVideo_success, undefined, true);
+                }
+            } 
+            
+            self.skipCurrentVideo_success  = function(data){
+                self.playcurrent();
+            }
+            
+            self.playcurrent_success = function(data){
+                overlays_show();
+                self.data= data;
+                self.startposition = data.startposition;
+                self.playbackurl_changed = self.playbackurl !=  data.playbackurl;
+                self.playbackurl =  data.playbackurl;  
+                self.playback_started = false;
+                self.playing = false;
+                self.playbacktime = 0;
+                self.playbacktime_lastupdate = 0;
+                self.playbacktime_lastsend = 0;
+                self.playbacktime_lastsendvalue = 0;         
+                self.playbacktime_sleeptime = 5000;                
+                if(self.playbackurl == "" || self.data.currentvideo.id == undefined){
+                    if(self.jsplayer.hasStarted()){
+                        self.jsplayer.reset();
+                    }
+                    $("#overlay-error").html("No video available");
+                    $("#currenttitle").html("");
+                    $("#overlay-topinfo").html("");
+                    $(".vjs-loading-spinner").hide();
+                }else{
+                    if(self.playbackurl_changed){
+                        $("#overlay-error").html("");
+                    
+                        $(".vjs-loading-spinner").show();
+                        if(self.playbackurl.indexOf(".m3u8") != -1){
+                            self.jsplayer.src({type: "application/x-mpegURL", src: self.playbackurl});
+                        }else{
+                            if(self.playbackurl.indexOf(".flv") != -1){
+                                self.jsplayer.src({type: "video/x-flv", src: self.playbackurl});
+                            }else{
+                                self.jsplayer.src({type: "video/mp4", src: self.playbackurl});
+                            }
+                        }
+                        self.jsplayer.play();
+                    }
+                    var ctitle = cleanstring(self.data.currentvideo.title);
+                    $("#currenttitle").html(ctitle);
+                    $("#overlay-topinfo").html(ctitle);
+                    $("#overlay-topinfo").css('opacity',0.999);
+                    if(overlay_titel_timeout != undefined){
+                        window.clearTimeout(overlay_titel_timeout);
+                    }
+                    overlay_titel_timeout = setTimeout(function(){
+                        overlay_titel_timeout = undefined;
+                        $("#overlay-topinfo").css('opacity',"");                        
+                    }, 6000);
+                    
+                }
+                $("#overlay-arrow-left").show();
+                $("#overlay-arrow-right").show();
+                if(self.current_channel_index == 1){
+                    $("#overlay-arrow-left").hide();
+                }
+                if(self.data.nextchannel.id == undefined){
+                    $("#overlay-arrow-right").hide();
+                }
+                
+                $("#overlay-channelindex").html(self.current_channel_index);
+                $("#channelname").html(self.data.currentchannel.name)
+                jQuery("#overlay").detach().appendTo('#my-video')
+            }
+            
+            self.up = function(data){
+                if(self.data != undefined && self.data.nextchannel != undefined && self.data.nextchannel.id != undefined){
+                    self.current_channel_index += 1;
+                    localStorage.setItem('current_channel_index', self.current_channel_index);
+                    self.playcurrent();
+                }else{
+                    if(self.data != undefined && self.data.nextchannel.id == undefined){
+                        self.current_channel_index = 1;
+                        localStorage.setItem('current_channel_index', self.current_channel_index);
+                        self.playcurrent();
+                    }
+                }
+            }
+            
+            self.down = function(data){
+                if(self.current_channel_index > 1){
+                    self.current_channel_index -= 1;
+                    localStorage.setItem('current_channel_index', self.current_channel_index);
+                    self.playcurrent();
+                }else{
+                    if(self.data != undefined){
+                        if(self.data.nrofchannels != 0 ){
+                            self.current_channel_index = self.data.nrofchannels;
+                            localStorage.setItem('current_channel_index', self.current_channel_index);
+                            self.playcurrent();
+                        }
+                    }
+                }
+            }            
+        }
+
+    </script>    
+
+{% endblock %}
+
+
+{% block content %}
+    <div id="video-outer" style="margin:-15px">
+        <video id="my-video" class="video-js" controls preload="auto" style=" width: 100% !important;height:calc(100vh - 50px) !important;min-height:250px;" data-setup='{}'>
+            <p class="vjs-no-js">To view this video please enable JavaScript, and consider upgrading to a web browser that
+                <a href="http://videojs.com/html5-video-support/" target="_blank">supports HTML5 video</a>
+            </p>   
+            <div id="overlay" class="player-overlay" style="height:90%;" onclick="overlays_show();">
+                <div id="overlay-arrow-left"   class="player-overlay overlay-item updownarrows fa fa-arrow-left " onclick="Player.down()" style="left:5px;" > </div>
+                <div id="overlay-arrow-right"  class="player-overlay overlay-item updownarrows fa fa-arrow-right" onclick="Player.up()"   style="right:5px"> </div>
+                <div id="overlay-topinfo"      class="player-overlay overlay-item"> No Info </div>
+                <div id="overlay-channelindex" class="player-overlay overlay-item"> No Index </div>
+                <div id="overlay-error"        class="player-overlay overlay-item"> No video available </div>
+                <div id="overlay-skip"         class="player-overlay overlay-item" onclick="Player.skipCurrentVideo();" > Skip </div>
+            </div> 
+        </video>
+    </div>
+
+       
+    <div  id="panelWorking" class="panel-working">
+        <img src="static/loading.gif">
+    </div>    
+        
+    <script>
+        
+        function overlays_show(){
+            $("#overlay-arrow-left").css("opacity",0.7);
+            $("#overlay-arrow-right").css("opacity",0.7);
+            $("#overlay-skip").css("opacity",0.7);
+            $("#overlay-topinfo").css('opacity',0.999);
+            if(overlay_timeout != undefined){
+                clearTimeout(overlay_timeout);
+            }
+            overlay_timeout = setTimeout(function(){ 
+                overlays_hide();
+            }, 3000);
+        }
+        
+        function overlays_hide(){
+            $("#overlay-arrow-left").css("opacity", "");
+            $("#overlay-arrow-right").css("opacity", "");
+            $("#overlay-skip").css("opacity", "");
+            if(overlay_titel_timeout == undefined){
+                $("#overlay-topinfo").css('opacity','');
+            }
+        }
+        
+        function fullscreen_toggle(){
+            if( Player.jsplayer.isFullscreen() == true){
+                Player.jsplayer.exitFullscreen();
+            }else{
+                Player.jsplayer.requestFullscreen();
+            }        
+        }
+        
+        $(document).ready(function() {
+            Player = new PlayerClass("my-video");
+            var u  = 117; // u key 
+            var au = 38;  // arrow up
+            var d = 100;  // d key
+            var ad = 40; // arrow down
+            
+            var s = 115; // skip
+            var f = 102; // fullscreen
+            
+            keypressed = function(e){
+                if(e.which == u || e.which == au){
+                    Player.up();
+                }
+                if(e.which == d || e.which == ad){
+                    Player.down();
+                }
+                if(e.which == s){
+                    Player.skipCurrentVideo();
+                }
+                if(e.which == f){
+                    fullscreen_toggle();
+                }                
+            }
+            $(document).keydown(keypressed);
+            $(document).keypress(keypressed);
+
+            Player.playcurrent();
+            
+        });
+        document.getElementById("player-navbar").classList.add("active");
+    
+    </script>
+    
+{% endblock %}

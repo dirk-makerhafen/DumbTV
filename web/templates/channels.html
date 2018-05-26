@@ -1,0 +1,964 @@
+{% extends 'adminlte/base.html' %}
+{% load kodi_nameclean %}
+
+{% block content_header %}
+    <script>
+    
+        var user_allow_adult = {{request.user.settings.allowAdult | lower}};
+
+        function BrowserClass(){
+            var self = this;
+            self.adultmode = "noadult";
+            self.resolved_path_items = []; 
+            self.current_path = [];
+            self.current_filter = "";
+            self.show_stats_overlay = false;
+            self.sort_by = "title";
+            
+            self.browse = function(target_path){
+                apiCall({ api: "browser", command : "open", path: JSON.stringify(target_path),}, self.browse_success);
+            }
+            
+            self.browse_success = function(data){
+                $("#browser_filter_input").val("");
+                self.current_filter = "";
+                self.resolved_path_items = data.resolved_path_items;
+                
+                self.items = data.items;
+
+                if( Channels.get(Channels.selected_channel_id) != null){ 
+                    self.adultmode = Channels.get(Channels.selected_channel_id).adultmode;
+                }
+                
+                if(self.adultmode != "all"){
+                    for (var i = self.items.length - 1; i >= 0; i--) {    
+                        if(self.adultmode == "noadult"   && self.items[i].isAdult == true  ){self.items.splice(i, 1);}
+                        if(self.adultmode == "adultonly" && self.items[i].isAdult == false ){self.items.splice(i, 1);}
+                    }
+                }
+                for (index = 0; index < self.items.length; ++index) {
+                    self.items[index].index = index;
+                    self.items[index].cleantitle = cleanstring(self.items[index].title);
+                }
+
+                self.render_items();
+                var path_string = "";
+                self.current_path = data.item.path;
+                for (index = 0; index < self.current_path.length; ++index) { 
+                    path_string += cleanstring(self.current_path[index][1])  + "/";
+                }
+                $("#browser_current_path").html(path_string);
+                
+                
+            }
+            
+            self.back = function(){
+                self.current_path.pop();
+                self.browse(self.current_path);
+            }
+
+            self.open = function(subitemIndex){
+                self.current_path.push([self.items[subitemIndex].hash, self.items[subitemIndex].title]);
+                self.browse(self.current_path);
+            }            
+            
+            self.get_full_path = function(subitemIndex){
+                var tmp = self.current_path.slice(0);
+                tmp.push([self.items[subitemIndex].hash, self.items[subitemIndex].title]);
+                return tmp;
+            }
+            
+            self.search = function(subitemIndex, searchInput){
+                self.current_path.push([self.items[subitemIndex].hash, self.items[subitemIndex].title]);
+                self.current_path.push(["", searchInput])
+                self.browse(self.current_path);
+            }
+            
+            self.show = function(){
+                self.browse([]);
+                $("#browser_modal").modal();
+            }
+            
+            self.current_path_to_current_channel = function(){
+                Channels.addSource(Channels.selected_channel_id, JSON.stringify(self.current_path ));
+            }
+                        
+            self.render_items = function(){
+                if(user_allow_adult == true){
+                    $("#browser_adultmode").show();
+                }else{
+                    $("#browser_adultmode").hide();
+                    self.adultmode = "noadult";
+                }
+                
+                var itemsToRender = [];
+                var filter = $("#browser_filter_input").val().toLowerCase();
+                self.current_filter = filter;
+                for (var i = self.items.length - 1; i >= 0; i--) {
+                    if(filter != ""){
+                        if(self.items[i].title.toLowerCase().indexOf(filter) == -1){
+                            continue;
+                        }
+                    }
+                    itemsToRender.push(self.items[i]);
+                }
+                
+                if(self.sort_by == "title"){
+                    
+                    $('#browser_sortby_title').css("color","#555");
+                    $('#browser_sortby_playback_duration').css("color","");
+                    itemsToRender.sort(function(a, b){
+                        var keyA = a.title;
+                        var keyB = b.title;
+                        if(keyA < keyB) return -1;
+                        if(keyA > keyB) return 1;
+                        return 0;
+                    });
+                }
+                if(self.sort_by == "playback_duration"){
+                    $('#browser_sortby_title').css("color","");
+                    $('#browser_sortby_playback_duration').css("color","#555");
+                    
+                    itemsToRender.sort(function(a, b){
+                        var keyA = a.stats["playback:duration_played"];
+                        var keyB = b.stats["playback:duration_played"];
+                        if(keyA < keyB) return 1;
+                        if(keyA > keyB) return -1;
+                        return 0;
+                    });
+                }                
+                var browser_items_template = document.getElementById('browser_items_template').innerHTML;
+                $("#browser_items").html(Mustache.render( browser_items_template ,{ items: itemsToRender }));  
+                if(self.show_stats_overlay == true){
+                    $('.browseable_item_box_folder_stats_overlay').show()
+                }
+                
+            }
+            
+            self.render_filter = function(){
+                var filter = $("#browser_filter_input").val().toLowerCase();
+                if(filter != self.current_filter){
+                    self.render_items();
+                }
+            }
+            
+            self.toggle_stats_overlay = function(){
+                if(self.show_stats_overlay == true){
+                    self.show_stats_overlay = false;
+                    $('.browseable_item_box_folder_stats_overlay').hide();
+                    $('#browser_toggle_stats').css("color","");
+                }else{
+                    self.show_stats_overlay = true;
+                    $('.browseable_item_box_folder_stats_overlay').show();
+                    $('#browser_toggle_stats').css("color","#555");
+                }
+              
+                
+            }
+            
+            self.set_sorted_by = function(key){
+                self.sort_by = key;
+                self.render_items();
+            }
+
+        }
+    
+        function GlobalExcludeFiltersClass(){
+            var self = this;
+            
+            self._filters = [];
+            
+            self.reload = function(){
+                apiCall({ api: "globalExcludeFilters", command: "get",}, self.reload_success)
+            }
+            self.reload_success = function(data){   
+                self._filters = data.filters;
+                var globalExcludeFilters_template = document.getElementById('globalExcludeFilters_template').innerHTML;
+                $("#globalExcludeFilters").html(Mustache.render( globalExcludeFilters_template ,{ filters: data.filters}));
+            }
+            
+            self.add = function(value){
+                if(value != "" && self.exists(value) == false){
+                    apiCall({ api: "globalExcludeFilters", command: "add", value : value}, self.reload)
+                }
+            }
+            
+            self.remove = function(filter_id){
+                apiCall({ api: "globalExcludeFilters", command: "remove", filter_id : filter_id}, self.reload)
+            }
+
+            self.exists = function(value){
+                for (index = 0; index < self._filters.length; ++index) {
+                    if (self._filters[index].value == value){
+                        return true;
+                    }
+                }
+                return false;
+            }
+        }
+    
+        function ChannelsClass(){
+            var self = this;
+            self.data = []; 
+            self.selected_channel_id = -1;
+            
+            self.created_channel = false;
+            self.reload_timer = undefined;
+            
+            self.reload = function(){
+                apiCall({ api: "channels", command: "get",}, self.reload_success);
+            } 
+            
+            self.dragactive = false;
+            
+            self.reload_success = function(data){
+                self.data = data;
+                var isLoading = false;
+                for (index = 0; index < self.data.channels.length; ++index) {
+                    if(self.data.channels[index].upfill_active){
+                       isLoading = true;
+                    }
+                    for (sindex = 0; sindex < self.data.channels[index].sources.length; ++sindex) {
+                        for (pindex = 0; pindex < self.data.channels[index].sources[sindex].path.length; ++pindex) {
+                            self.data.channels[index].sources[sindex].path[pindex]["cleanname"] = cleanstring(self.data.channels[index].sources[sindex].path[pindex][1]);
+                        }
+                    }
+                    if((index+1) % 2 == 0 ){
+                        self.data.channels[index].oddeven = "even";
+                    }else{
+                        self.data.channels[index].oddeven = "odd";
+                    }
+                }
+                
+                var channels_template = document.getElementById('channels_template').innerHTML;
+                $("#channels").html(Mustache.render( channels_template ,{ channels: data.channels}));
+                for (index = 0; index < self.data.channels.length; ++index) {
+                    var channel_sources_template = document.getElementById('channel_sources_template').innerHTML;
+                    $("#channelsources-" + self.data.channels[index].id).html(Mustache.render( channel_sources_template ,{ channel: self.data.channels[index]}));   
+
+                    var channel_upcoming_boxes_template = document.getElementById('channel_upcoming_boxes_template').innerHTML;
+                    $("#channel_upcoming_boxes-" + self.data.channels[index].id).html(Mustache.render( channel_upcoming_boxes_template ,{ channel: self.data.channels[index]}));                      
+                }
+                
+                $("#arrow-up-1").hide();
+                $("#arrow-down-" + (data.channels.length)).hide();
+                
+                
+                if(self.created_channel == true){
+                    self.created_channel = false;
+                    self.selected_channel_id = self.data.channels[self.data.channels.length-1].id;
+                    window.scrollTo(0,document.body.scrollHeight);
+                }
+                self.renderSelectedChannel();
+                
+                if(isLoading == true){
+                    if(self.reload_timer == undefined){
+                        self.reload_timer = setTimeout(function(){
+                            apiCall({ api: "channels", command: "get",}, self.reload_success, null, true);
+                            self.reload_timer = undefined;
+                        }, 10000);             
+
+                    }
+                }else{
+                    if(self.reload_timer != undefined){
+                        window.clearTimeout(self.timeoutHandle);
+                    }
+                }                
+                
+            }
+            
+            self.create = function(){
+                self.create_channel = true
+                apiCall({ api: "channels", command: "create",}, self.create_success);
+            }
+            
+            self.create_success = function(data){
+                self.created_channel = true;   
+                self.reload();
+            }
+            
+            self.remove = function(channel_id){
+                apiCall({ api: "channels", command: "remove", channel_id : channel_id}, self.reload);
+            }
+            
+            self.remove_current_channel = function(){
+                self.remove(self.selected_channel_id);
+            }
+     
+            self.rename = function(channel_id, newname){
+                apiCall({ api: "channels", command: "rename", channel_id : channel_id, newname: newname}, Channels.reload);
+            }
+
+            self.setCurrentChannelAdultMode = function(){
+                var currentChannel = self.get(self.selected_channel_id);
+                if( currentChannel != null){   
+                    var currentAdultMode = currentChannel.adultmode;
+                    var newAdultMode = $("#channel_adult_mode_select").val();
+                    if(currentAdultMode != newAdultMode){
+                        currentChannel.adultmode = newAdultMode; 
+                        apiCall({ api: "channels", command: "setAdultMode", channel_id : self.selected_channel_id, adultmode: newAdultMode}, undefined);
+                        
+                    }
+                }
+            }
+            
+            self.addSource = function(channel_id, path){
+                apiCall({ api: "channels", command: "addSource", channel_id : channel_id, path : path}, Channels.reload);
+            }
+            
+            self.removeSource = function(source_id){
+                apiCall({ api: "channels", command: "removeSource", source_id : source_id}, Channels.reload);
+            }
+            
+            self.addVideo_to_current_channel = function( path){
+                apiCall({ api: "channels", command: "addVideo", channel_id: self.selected_channel_id, path : JSON.stringify(path)}, Channels.reload);
+            }
+            
+            self.skipVideo = function(upcoming_id){
+                $("#upcoming-" + upcoming_id).remove();
+                $("#upcoming-" + upcoming_id).remove();
+                apiCall({ api: "upcoming", command: "skipVideo", upcoming_id : upcoming_id}, Channels.reload);
+                
+            }
+            
+            self.addIncludeFilter = function(channel_id, value){
+                if(value != ""){
+                    apiCall({ api: "channels", command: "addIncludeFilter", channel_id : channel_id, value: value}, Channels.reload);
+                }
+            }
+            
+            self.addExcludeFilter = function(channel_id, value){
+                if(value != ""){
+                    apiCall({ api: "channels", command: "addExcludeFilter", channel_id : channel_id, value: value}, Channels.reload);
+                }
+            }
+            
+            self.removeIncludeFilter = function(filter_id){
+                apiCall({ api: "channels", command: "removeIncludeFilter", filter_id : filter_id}, Channels.reload);
+            }
+            
+            self.removeExcludeFilter = function(filter_id){
+                apiCall({ api: "channels", command: "removeExcludeFilter", filter_id : filter_id}, Channels.reload);
+            }
+            
+            self.get = function(channel_id){
+                if(self.data.channels != undefined){
+                    for (index = 0; index < self.data.channels.length; ++index) {
+                        if(self.data.channels[index].id == channel_id){
+                            return self.data.channels[index];
+                        }
+                    }
+                }
+                return null;
+            }
+            
+            self.getSelectedChannel = function(){
+                return self.get(self.selected_channel_id);
+            }
+            
+            self.selectChannel = function(channel_id){
+                self.selected_channel_id = channel_id;
+                self.renderSelectedChannel();
+            }
+            
+            self.renderSelectedChannel = function(){
+                if( self.get(self.selected_channel_id) == null){   
+                    if(self.data.channels[0] != undefined){
+                        self.selected_channel_id = self.data.channels[0].id; 
+                    }
+                }
+                var selectedChannels = $(".selectedChannel");
+                if (selectedChannels[0] != undefined){
+                    selectedChannels.removeClass("selectedChannel");
+                    $("#sourceheadline-" + self.selected_channel_id).removeClass("selectedChannel");
+                    
+                }
+                if ($("#channel-" + self.selected_channel_id)[0] != undefined){
+                    $("#channel-" + self.selected_channel_id).addClass("selectedChannel");
+                    $("#sourceheadline-" + self.selected_channel_id).addClass("selectedChannel");
+                }
+                
+                var browser_includefilters_template = document.getElementById('browser_includefilters_template').innerHTML;
+                var browser_excludefilters_template = document.getElementById('browser_excludefilters_template').innerHTML;
+                var browser_channelsources_template = document.getElementById('browser_channelsources_template').innerHTML;
+                var browser_channel_upcoming_template = document.getElementById('browser_channel_upcoming_template').innerHTML;
+
+                
+                var selected_channel = self.get(self.selected_channel_id);
+                if(selected_channel != null){
+                    //$(".selected_channel_name").html(selected_channel.name);
+                    $("#channelNameInput").val(selected_channel.name);
+                    $("#channelNameInput").attr("placeholder", selected_channel.name);
+                    $("#channel_adult_mode_select").val(selected_channel.adultmode);
+                    $("#browser_includefilters").html(Mustache.render( browser_includefilters_template ,{ channel: selected_channel}));
+                    $("#browser_excludefilters").html(Mustache.render( browser_excludefilters_template ,{ channel: selected_channel}));
+                    if(selected_channel.sources.length == 0){
+                        $("#browser_channelsources").html("<span class='nosources'>No sources added yet</span>");
+                    }else{
+                        $("#browser_channelsources").html(Mustache.render( browser_channelsources_template ,{ channel: selected_channel }));
+                    }
+                    $("#browser_channel_upcoming").html(Mustache.render( browser_channel_upcoming_template ,{ channel: selected_channel }));                      
+                }else{
+                    //$(".selected_channel_name").html("");
+                    $("#channelNameInput").val("");
+                    $("#channelNameInput").attr("placeholder", "");
+                    $("#browser_includefilters").html(Mustache.render( browser_includefilters_template ,{ channel: {}}));
+                    $("#browser_excludefilters").html(Mustache.render( browser_excludefilters_template ,{ channel: {}}));
+                    $("#browser_channelsources").html("<span class='nosources'>No existing channel yet</span>");
+                }
+                self.loadDragDrop();
+            }
+            
+           
+            self.loadDragDrop = function(){
+                $( "#channels" ).disableSelection();
+                $( "#channels" ).height(""); // prevent jump 
+                $( "#channels" ).height($( "#channels" ).height()); // prevent jump 
+                
+                $("#channels").sortable({
+                    placeholder: 'slide-placeholder',
+                    axis: "y",
+                    revert: true,
+                    handle: '.move_ankor',
+                    start: function(e, ui){
+                        
+                        self.dragactive = true;
+                        ui.item.css("border","1px solid lightgray");
+                        ui.item.css("border-radius","3px");
+                        placeholderHeight = ui.item.outerHeight();
+                        ui.placeholder.height(placeholderHeight + 15);
+                        $('<div class="slide-placeholder-animator" data-height="' + placeholderHeight + '"></div>').insertAfter(ui.placeholder);
+                    },
+                    change: function(event, ui) {
+                        self.dragactive = true;
+                        ui.placeholder.stop().height(0).animate({
+                            height: ui.item.outerHeight() + 15
+                        }, 300);
+                        
+                        placeholderAnimatorHeight = parseInt($(".slide-placeholder-animator").attr("data-height"));
+                        
+                        $(".slide-placeholder-animator").stop().height(placeholderAnimatorHeight + 15).animate({
+                            height: 0
+                        }, 300, function() {
+                            $(this).remove();
+                            placeholderHeight = ui.item.outerHeight();
+                            $('<div class="slide-placeholder-animator" data-height="' + placeholderHeight + '"></div>').insertAfter(ui.placeholder);
+                        });
+                        
+                    },
+                    stop: function(e, ui) {
+                        self.dragactive = false;
+                        ui.item.css("border","");
+                        ui.item.css("border-radius","");                        
+                        $(".slide-placeholder-animator").remove();
+                        var x = $("#channels")[0].children;
+                        var index = 0;
+                        var indexesChanged = false;
+                        var channel_ids = [];
+                        for(var index=0;index<x.length;index++){
+                            var channelid = x[index].getAttribute("channelid");
+                            if(channelid != null ){
+                                if((index+1) % 2 == 0 ){
+                                    $("channel-" + channelid).removeClass("odd").addClass("even")
+                                }else{
+                                    $("channel-"  +channelid).removeClass("even").addClass("odd")
+                                }
+                                channel = self.get(channelid);
+                                channel_ids.push(channelid);
+                                //if(channel.index != index+1){
+                                //    indexesChanged = true;
+                                //}
+                            }
+                        }
+                        //if(indexesChanged == true){
+                        apiCall({ api: "channels", command: "reIndex", channel_ids : JSON.stringify(channel_ids)}, Channels.reload);
+                        //}
+                    },
+                });    
+            }            
+                        
+            
+            
+        
+        }
+        Mustache.tags = ['[[', ']]'];
+        var Channels = new ChannelsClass()
+        var GlobalExcludeFilters = new GlobalExcludeFiltersClass()
+        var Browser = new BrowserClass()
+    
+        //var current_path = [];
+        var current_path_names = [];
+        var selected_channel = "";
+        var selected_channel_name = "";
+        
+    
+        function showMessage(m, t) {
+            var msgType = ( t == "e" ) ? "danger" : ( t == "s" ) ? "success" : "info";
+            var element = "body";
+            alert(m);
+            //$.notify(
+            //    { message: m },
+            //    { type: msgType, delay: 3000, mouse_over: 'pause', offset: { x: 15, y: 65 }, element: element }
+            //);
+        };
+
+        
+        Browser.browse([])        
+        Channels.reload();
+        GlobalExcludeFilters.reload()
+        document.getElementById("channels-navbar").classList.add("active");
+        
+        var isOnTop = false;
+        var isOnBottom = false;
+        
+        scroll = function(){
+            if(Channels.dragactive == true){
+                if(isOnTop == true){
+                    window.scrollBy({ top: -50, behavior: 'smooth' });
+                }
+                if(isOnBottom == true){
+                    window.scrollBy({ top: 50, behavior: 'smooth' });
+                }
+                self.reload_timer = setTimeout(scroll, 50);   
+            }else{
+                self.reload_timer = undefined;
+            }
+            
+        }
+        $(window).on('mousemove', function(e) {
+            var _docHeight = Math.max(document.documentElement.clientHeight, window.innerHeight || 0);
+            isOnTop = e.clientY  < (_docHeight/3);
+            isOnBottom = e.clientY  > (_docHeight/3*2);
+            if (self.reload_timer == undefined){
+               scroll();
+            }
+        });
+        
+    </script>    
+
+{% endblock %}
+
+
+{% block content %}
+
+
+<script type="x-tmpl-mustache" id="channels_template">
+    [[#channels]]
+        <div class="row [[oddeven]] channelrow" id="channel-[[ id ]]" channelid="[[id]]" onmousedown="Channels.selectChannel([[id]]);"  style="padding:5px;margin-left:-5px;margin-right:-5px;">
+            <div class="col-12 col-lg-3"> 
+                <div class="row">
+                    <div class="col-2" style="text-align:center"> [[ index ]] </div>
+                    <div class="col"> 
+                        <div class="row">
+                            <div class="col-9"> 
+                                [[name]]
+                            </div>
+                            <div class="col-3">
+                                <a href="#" style="cursor:pointer;" onclick="Browser.show()"> Edit </a>
+                            </div>
+                        </div>
+                    </div>  
+                </div>
+                <div class="row d-none d-lg-block" style="margin-bottom: -11px;">
+                    <span id="sourceheadline-[[id]]" style="margin-left:10px;padding-left:5px;padding-right:5px;font-size:0.9em;color:lightgray;" class="[[oddeven]]">Sources</span>
+                </div>
+                <ul class="row d-none d-lg-block " id="channelsources-[[id]]" style="border-top:1px solid #dcdcdc;padding-top:10px">
+                
+                </ul>
+
+            </div>
+            <div class="col channel_upcoming_boxes nicescoll" id="channel_upcoming_boxes-[[id]]"> Upcoming filled by js </div>
+            <div class="move_ankor" >
+                <i class="ion ion-drag" style="color:#666" ></i>
+            </div>          
+        </div>
+    [[/channels]]    
+</script>
+
+
+
+<script type="x-tmpl-mustache" id="channel_sources_template">    
+    [[#channel]]
+        [[#sources]]
+            <li id="channelSource-[[id]]" style="width:100%;float:left;font-size:0.9em;margin-left:-20px;">
+                <span> [[#path]][[cleanname]]/[[/path]] </span>
+            </li>
+        [[/sources]]
+        [[^sources]]
+            <div style="color:lightgray;padding-top:20px;"> No sources </div>
+        [[/sources]]
+    [[/channel]] 
+</script>
+
+<script type="x-tmpl-mustache" id="channel_upcoming_boxes_template">
+    [[#channel]]
+        <div style="border-radius:3px;top:97px;position:absolute;height:5px;margin-left:3px;background-color:red;width:calc( 180px / [[currentvideo.duration]] * [[currentvideo_startposition]])"> </div>
+        [[#upcoming]]
+            <div id="upcoming-[[id]]" class="channel_upcoming_box" >
+                <div class="channel_upcoming_box_imgicon">
+                    <div class="channel_upcoming_box_text_skip" onclick="Channels.skipVideo([[id]])"> <i class="fa fa-trash">  </i> </div> 
+                    <img class="channel_upcoming_box_img"  src='[[thumbnailImage]]' onload="this.style.display='block';this.nextElementSibling.style.display='none'">
+                    <div class="channel_upcoming_box_icon" > <i class="fa fa-film itemicon"></i> </div>
+                </div>
+                <div class="channel_upcoming_box_text" >
+                     <span class="channel_upcoming_box_text_title" >[[title]]</span>
+                </div>
+            </div>
+        [[/upcoming]]
+        [[^upcoming]] 
+            <div style="color:lightgray; text-align:left; font-size:2em; font-weight:bold; opacity:0.7; margin:40px;"> No upcoming videos </div> 
+        [[/upcoming]]
+        
+        [[#upfill_active]]                        
+            <div id="upfill_active-[[id]]"  class="channel_upcoming_box" style="padding-top:25px">
+                 <div>
+                    <img class="channel_upcoming_box_img"  src='static/loading.gif' style="width:50px;height:50px;min-height:50px;display:block;">
+                </div>
+                <div class="channel_upcoming_box_text" >
+                     <span class="channel_upcoming_box_text_title">Loading more..</span>
+                </div>                        
+            </div>
+        [[/upfill_active]]   
+    [[/channel]]
+</script>
+
+<script type="x-tmpl-mustache" id="browser_channelsources_template">    
+    [[#channel]]
+        [[#sources]]
+            <div id="channelSource-[[id]]" class="row">
+                <div class="col-1" onclick="Channels.removeSource('[[ id ]]');" style="width:20px;cursor:pointer;"> <a><i class="fa fa-trash"></i></a> </div> 
+                <div class="col-10"> [[#path]][[cleanname]]/[[/path]] </div>
+            </div>
+        [[/sources]]
+    [[/channel]]
+</script>
+
+
+<script type="x-tmpl-mustache" id="browser_includefilters_template">
+    [[#channel]]
+        <div class="row">
+            <div class="col-9">
+                <input class="form-control" id="includefilters_input_[[id]]" placeholder="Title include filter">
+            </div>
+            <div class="col-3">
+                 <button class="btn btn-success" onclick="Channels.addIncludeFilter([[id]], $('#includefilters_input_[[id]]')[0].value)"> Add</button>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-12">
+                [[#includefilters]]
+                    <div style="float:left;border:1px solid lightgray;border-radius:3px;padding:2px;margin:2px;background-color:#ccffcc"> 
+                        <span style="vertical-align:middle;padding-left:4px;">[[value]] </span>
+                        <button style="margin-left:10px;padding:2px 7px;" class="btn btn-default" onclick="Channels.removeIncludeFilter([[id]])"> X</button>
+                    </div>     
+                [[/includefilters]]
+            </div>
+        </div>
+    [[/channel]]
+</script>
+
+
+<script type="x-tmpl-mustache" id="browser_excludefilters_template">
+    [[#channel]]
+        <div class="row">
+            <div class="col-9">
+                <input class="form-control" id="excludefilters_input_[[id]]" placeholder="Title exclude filter">
+            </div>
+            <div class="col-3">
+                 <button class="btn btn-success" onclick="Channels.addExcludeFilter([[id]], $('#excludefilters_input_[[id]]')[0].value)"> Add</button>
+            </div>
+        </div>
+        
+        <div class="row">
+            <div class="col-12">
+                [[#excludefilters]]
+                    <div style="float:left;border:1px solid lightgray;border-radius:3px;padding:2px;margin:2px;background-color:#ffffcc"> 
+                        <span style="vertical-align:middle;padding-left:4px;">[[value]] </span>
+                        <button style="margin-left:10px;padding:2px 7px;" class="btn btn-default" onclick="Channels.removeExcludeFilter([[id]])"> X</button>
+                    </div>     
+                [[/excludefilters]]
+            </div>
+        </div>
+    [[/channel]]
+</script>
+
+
+<script type="x-tmpl-mustache" id="browser_channel_upcoming_template">
+    [[#channel]]
+        <div style="border-radius:3px;margin-top:65px;position:absolute;height:5px;margin-left:2px;background-color:red;width:calc( 120px / [[currentvideo.duration]] * [[currentvideo_startposition]])"> </div>
+        [[#upcoming]]
+            <div id="upcoming-[[id]]" class="browser_channel_upcoming_box">
+                <div  class="browser_channel_upcoming_box_imgicon">
+                    <div class="browser_channel_upcoming_box_text_skip" onclick="Channels.skipVideo([[id]])"> <i class="fa fa-trash">  </i> </div> 
+                    <img class="browser_channel_upcoming_box_img" src='[[thumbnailImage]]' onload="this.style.display='block';this.nextElementSibling.style.display='none'">
+                    <div class="browser_channel_upcoming_box_icon"> <i class="fa fa-film itemicon"></i> </div>
+                </div>
+                <div class="browser_channel_upcoming_box_text" >
+                     <span class="browser_channel_upcoming_box_text_title">[[title]]</span>
+                </div>
+            </div>
+        [[/upcoming]]
+        [[^upcoming]] <div class="browser_channel_upcoming_none"> No upcoming videos </div> [[/upcoming]]
+        
+        [[#upfill_active]]                        
+            <div id="upfill_active-[[id]]" class="browser_channel_upcoming_box">
+                <div>
+                    <img class="browser_channel_upcoming_box_img"  src='static/loading.gif' style="display:block">
+                </div>
+                <div class="browser_channel_upcoming_box_text" >
+                     <span class="browser_channel_upcoming_box_text_title">Loading more..</span>
+                </div>
+            </div>
+        [[/upfill_active]]
+    [[/channel]]
+</script>
+
+
+<script type="x-tmpl-mustache" id="browser_items_template">
+    <div class="row no-gutters">   
+        [[#items]]
+            [[# isFolder ]]
+                [[# requireKeyboard ]]
+                    <div class="col-12" >
+                        <div class="row">
+                            <div class="col-3"> 
+                                <input class="form-control" id="searchInput-[[hash]]" style="margin-top:25px;" placeholder="keyboard input" onkeydown = "if (event.keyCode == 13){Browser.search([[ index ]], $('#searchInput-[[hash]]')[0].value);};"></input> 
+                            </div>
+                            <div class="col-2" style="cursor:pointer;" onclick="Browser.search([[ index ]], $('#searchInput-[[hash]]')[0].value);"> 
+                                <img class="browseable_item_box_image" src='[[thumbnailImage]]' onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+                                <div class="browseable_item_box_icon"> <i class="fa fa-folder-open itemicon"></i> </div>
+                                <div class="browseable_item_box_text"><span>[[cleantitle]]</span></div>
+                            </div>
+                        </div>
+                    </div>
+                [[/ requireKeyboard ]]
+                [[^ requireKeyboard ]]
+                    <div class="col-4 col-md-3 col-lg-2 col-xl-1 browseable_item_box" onclick="Browser.open([[ index ]]);" style="padding-left: 2px;padding-right: 2px;">
+                        <div class="row" style="min-height:90px">
+                            <div class="col-12">
+                                <div id="stats-[[hash]]" class=" row  browseable_item_box_folder_stats_overlay" >
+                                    Videos: [[stats.upcoming:videos_found]]<br>
+                                    Used:   [[stats.upcoming:videos_added]]<br>
+                                    Played: [[stats.playback:duration_played]] <small>( [[stats.playback:duration_playedrate]] %)</small><br>
+                                    Errors: [[stats.playback:error]]  <small>( [[stats.playback:errorrate]] %)</small><br>
+                                </div>  
+                                <img class="browseable_item_box_image" src='[[thumbnailImage]]' onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+                                <div class="browseable_item_box_icon"> <i class="fa fa-folder-open itemicon"></i> </div>
+                          
+                            </div>
+                        </div>
+                        <div class="no-gutters row browseable_item_box_text"><div class="col-12">[[cleantitle]]</div></div>
+                    
+                    </div>
+                [[/ requireKeyboard ]]
+            [[/ isFolder ]] 
+            [[^ isFolder ]]
+                <div class="col-4 col-md-3 col-lg-2 col-xl-1 browseable_item_box" style="padding-left: 2px;padding-right: 2px;">
+                    <div class="row">
+                        <div class="col-12">
+                            <div class="browseable_item_box_video_play" onclick="Channels.addVideo_to_current_channel(Browser.items[ [[ index ]] ].path);"> Add to upcoming </div> 
+                            <img class="browseable_item_box_image" src='[[thumbnailImage]]' onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+                            <div class="browseable_item_box_icon"> <i class="fa fa-film itemicon"></i> </div>
+                        </div>
+                        <div class="browseable_item_box_text col-12"><span>[[cleantitle]]</span></div>
+                    </div>
+                </div>
+            [[/ isFolder ]]   
+            
+        [[/items]]   
+    </div>
+    <div class="row"></div>
+ 
+</script>
+
+<script type="x-tmpl-mustache" id="globalExcludeFilters_template">
+    [[#filters]]
+        <div style="float:left;border:1px solid lightgray;border-radius:5px;padding:5px;margin:5px;"> 
+            <span>[[value]] <span>
+            <button style="margin-left:10px" class="btn btn-default" onclick="GlobalExcludeFilters.remove([[id]])"> X</button>
+        </div>     
+    [[/filters]]    
+</script>
+    
+    <!-- Channel box -->
+    <div class="row"> 
+        <div class="col-12"> 
+            <div class="box">
+                <div class="box-header">
+                    <button class="btn btn-success" onclick="Channels.create();"> Create Channel </button>
+                </div>
+                <div class="box-body">
+                    <div id="channels">
+
+                    </div>
+                </div>
+            </div>    
+        </div>    
+    </div>
+    <!-- /Channel box -->
+    
+    <!-- Global Exclude Filters box -->
+    <div class="row"> 
+        <div class="col-12"> 
+            <div class="box">
+                <div class="box-header">
+                    <div class="row">
+                        <div class="col-12 col-sm-6"> <h3 class="box-title"> Global Exclude Filters</h3></div>
+                        <div class="col-12 col-sm-6">  
+                            <div class="row">
+                                <div class="col-8">  
+                                    <input class="form-control" id="AddGlobalExcludeFilterValue" placeholder="some filter string" ></input>
+                                </div>
+                                <div class="col-4">  
+                                    <button class="btn btn-success" onclick="GlobalExcludeFilters.add($('#AddGlobalExcludeFilterValue')[0].value)"> Add</button>
+                                </div>                        
+                            </div>                        
+                        </div>
+                    </div>
+                </div>
+                <div class="box-body">
+                    <div class="row">
+                        <div class="col-12" id="globalExcludeFilters" >To be load by javascript</div>
+                    </div>
+                </div>
+            </div>    
+        </div>    
+    </div>
+    <!-- /Global Exclude Filters box -->
+    
+    <!-- Browser modal -->
+    <div id="browser_modal" class="modal" role="dialog">
+        <div class="modal-dialog modal-90p">
+            <div class="modal-content">
+                <div class="container-fluid">
+                    <div class="row modal-header" style="border:none">
+                    
+                        <div class="col-8 col-sm-9 col-md-10">
+                            <div class="row">
+                                <div class="col-12 col-sm-5 col-md-3 col-lg-2"> 
+                                    <div> <h4 style="margin-top: 2px;"> Edit Channel </h4></div>
+                                </div>
+                                <div class="col-12 col-sm-7 col-md-9 col-lg-10">  
+                                    <div class="row">
+                                        <div class="col-8">
+                                            <input id="channelNameInput" value="" placeholder="" class="form-control" style="color:black;border:1px solid #eee;border-radius:3px;background-color:inherit;text-align:center;amargin-left:20px;amargin-right:20px;"
+                                                onfocusin="$('#saveNameChange').show();" 
+                                                onfocusout="  
+                                                    if( $('#channelNameInput')[0].value == $('#channelNameInput')[0].placeholder ){
+                                                        $('#saveNameChange').hide();
+                                                    }" 
+                                                > 
+                                            </input>
+                                        </div>
+                                        <div class="col-4">
+                                            <i class="fa fa-floppy-o" id="saveNameChange" style="padding-top: 10px;display:none;text-align:center;pointer:cursor;" onclick="Channels.rename(Channels.selected_channel_id, $('#channelNameInput')[0].value); $('#saveNameChange').hide();"> Save </i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-4 col-sm-3 col-md-2">
+                            <div class="col-6 close">
+                                <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                            </div>
+                            <div class="col-6" style=" text-align:right">
+                                <button class="btn btn-sm btn-default" onclick="Channels.remove_current_channel(); $('#browser_modal').modal('toggle');"><i class="fa fa-trash"></i></button>
+                            </div>                            
+                        </div>
+
+                    </div>
+            
+                    <div class="row modal_row">
+                        <div class="col-12 col-md-6 modal_row" style="border-top: 1px solid #e9ecef;">
+                            <div class="row modal-subheadline"><div class="modal-subheadline_text">Sources</div></div>
+                            <div class="row"> 
+                                <div class="col-12" id="browser_channelsources"> No sources loaded </div>
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-6 modal_row"  style="border-top: 1px solid #e9ecef;">
+                            <div class="row modal-subheadline"><div class="modal-subheadline_text">Filters</div></div>
+                            <div class="row" id="browser_channelsources_filters">
+                                <div class="container-fluid browser_channelsource_filter" id="browser_includefilters"> IncludeFilter To be filled by js </div>
+                                <div class="container-fluid browser_channelsource_filter" id="browser_excludefilters"> ExcludeFilter To be filled by js </div>
+                                <div class="container-fluid browser_channelsource_filter" id="browser_adultmode" style="display:none"> 
+                                    <div class="row">
+                                        <div class="input-group col-11">
+                                            <div class="input-group-prepend">
+                                                <div class="input-group-text">Adult content</div>
+                                            </div>
+                                            <select id="channel_adult_mode_select" onChange="Channels.setCurrentChannelAdultMode(); Browser.browse([]);" class="form-control">
+                                                <option value="all"> All content </option>
+                                                <option value="noadult"> No adult </option>
+                                                <option value="adultonly"> Adult only </option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row modal_row">
+                        <div class="col-12" style="border-top: 1px solid #e9ecef;">
+                            <div class="row modal-subheadline"><div class="modal-subheadline_text">Upcoming</div></div>
+                            <div class="row">
+                                <div class="col-12 nicescoll"  id="browser_channel_upcoming">  To be filled by js </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row modal_row">
+                        <div class="col-12" style="border-top: 1px solid #e9ecef;">
+                            <div class="row modal-subheadline"><div class="modal-subheadline_text">Current Path</div></div>
+                            <div class="col-12" id="browser_channesl_upcoming"> 
+                                <div class="row">   
+                                    <div>
+                                        <button class="btn btn-default" onclick="Browser.back();" style="margin-right:5px;">Back</button>
+                                    </div>
+                                    <div class="col-7" id="browser_current_path"> </div>
+                                    <div class="ml-auto">
+                                        <button class="btn btn-success" onclick="Browser.current_path_to_current_channel();">Add to sources </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    
+                    <div class="row modal_row">
+                        <div class="col-12" style="border-top: 1px solid #e9ecef;">
+                            <div class="row modal-subheadline"><div class="modal-subheadline_text">Browse</div></div>
+                            <div class="row">                                 
+                                 <div class="col-12" style="padding-bottom: 10px;">
+                                    <div class="row">
+                                        <div class="col d-none d-sm-block "></div>
+                                        <div class="col-6">
+                                            <input id="browser_filter_input" class="form-control" style="border-radius:5px;text-align:center;" placeholder="Filter" onKeyUp="Browser.render_filter()" onChange="Browser.render_filter()"> </input>
+                                        </div>
+                                        <div class="col" style="color:lightgray;text-align: right;">
+                                            <i id="browser_sortby_title"             title="Sort by title"       class="fa fa-sort-alpha-asc"  onclick="Browser.set_sorted_by('title')" style="cursor:pointer;font-size: 24px;padding-top: 5px;" ></i>
+                                            <i id="browser_sortby_playback_duration" title="Sort by most viewed" class="fa fa-sort-numeric-asc"  onclick="Browser.set_sorted_by('playback_duration')" style="cursor:pointer;font-size: 24px;padding-top: 5px;5px;padding-left: 10px;padding-right: 10px"></i>
+                                            <i id="browser_toggle_stats"             title="Show stats"          class="fa fa-pie-chart"  onclick="Browser.toggle_stats_overlay();" style="cursor:pointer;font-size: 24px;padding-top: 5px;" ></i>    
+                                        </div>
+                                    </div>
+                                </div>
+                                <div id="browser_items" class="col-12"> To be filled by js </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+                    </div>
+                    
+                </div>
+            </div>
+        </div>
+    </div>    
+    
+    <div  id="panelWorking" class="panel-working">
+        <img src="static/loading.gif">
+    </div>    
+  
+    <!-- /Browser modal -->
+    
+{% endblock %}

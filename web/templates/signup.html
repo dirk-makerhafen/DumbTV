@@ -1,0 +1,24 @@
+{% extends 'adminlte/base.html' %}
+{% load crispy_forms_tags %}
+{% block bodyclass %}login-page{% endblock %}
+
+{% block body %}
+
+<div class="register-box">
+    <div class="register-box-body">
+        <div class="register-logo">
+            <a href="/">Dumb<b>TV</b></a>
+        </div>
+        <form method="post">
+            {% csrf_token %}
+            {{ form | crispy }}
+            <button type="submit" class="btn btn-primary btn-block btn-flat">Register</button>
+        </form>
+        <div class="col-12 text-center">
+            <a href="/" class="text-center">I already have a login</a>
+        </div>        
+    </div>
+</div>
+
+
+{% endblock %}

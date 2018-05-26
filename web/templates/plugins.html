@@ -1,0 +1,113 @@
+{% extends 'adminlte/base.html' %}
+{% load kodi_nameclean %}
+{% block content_header %}
+    <script>
+        function PluginsClass(){
+            var self = this;
+            
+            self.reload = function(data){
+                apiCall({ api: "plugins", command: "list"}, self.reload_success);  
+            }
+            
+            self.reload_success = function(data){
+                var plugins_table_template = document.getElementById('plugins_table_template').innerHTML;
+                $("#plugins_table_container").html(Mustache.render( plugins_table_template ,{ plugins: data.plugins }));  
+                $('#plugins_table').DataTable( {
+                    order: [ [ 1, "asc" ] ],
+                    stateSave: true,
+                });
+            }
+        
+            self.install = function(plugin_id) {
+                apiCall({ api: "plugins", command: "install", plugin_id: plugin_id}, self.reload);
+            }      
+      
+            self.uninstall = function(plugin_id) {
+                apiCall({ api: "plugins", command: "uninstall", plugin_id: plugin_id}, self.reload);
+            } 
+
+            self.upgrade = function() {
+                apiCall({ api: "plugins", command: "upgrade"}, self.reload);
+            }            
+        }
+        Mustache.tags = ['[[', ']]'];
+        var Plugins = new PluginsClass()
+        Plugins.reload();
+        
+        document.getElementById("plugin-navbar").classList.add("active");
+    </script>    
+
+{% endblock %}
+
+
+{% block content %}
+    <script type="x-tmpl-mustache" id="plugins_table_template">
+       <table id="plugins_table" class="table no-margin">
+            <thead>
+                <tr>
+                    <th id="plugin_table_id">Meta</th>
+                    <th id="plugin_table_name">Name</th>
+                    <th id="plugin_table_summary">Summary</th>
+                    <th id="plugin_table_description">Description</th>
+                    <th id="plugin_table_action">Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                [[#plugins]]
+                    <tr>
+                        <td>
+                            Id: [[ id ]]<br>
+                            Provider: [[ provider_name_clean ]]<br>
+                            Version: [[ version ]]<br>
+                            Source: [[source]]
+                            [[#broken]] 
+                                <b>Broken</b> 
+                            [[/broken]]
+                            
+                        </td>
+                        <td> [[ plugin.name_clean ]]</td>
+                        <td style="word-break:break-word"> [[ summary  ]] </td>
+                        <td style="word-break:break-word"> [[ description  ]] </td>
+                        [[# isInstalled ]]
+                            <td> <Button  onclick="Plugins.uninstall('[[ id ]]');" class="btn btn-warning" style="width:80px"> Uninstall</button> </td>
+                        [[/ isInstalled ]]
+                        [[^ isInstalled ]]
+                            <td> <Button onclick="Plugins.install('[[ id ]]');" class="btn btn-success"  style="width:80px"> Install </button> </td>
+                        [[/ isInstalled ]]
+                    </tr>
+               [[/plugins]]
+            </tbody>
+        </table>
+    </script>
+
+    <style>
+        #plugin_table_id           { width: 10%  !important; }
+        #plugin_table_name         { width: 20%  !important; }
+        #plugin_table_summary      { width: 20%  !important; }
+        #plugin_table_description  { width: 40%  !important; }
+        #plugin_table_action       { width: 10%  !important; }
+    </style>
+    
+    <div id="plugins"> 
+        <div class="row">
+            <div class="col-md-12">
+                <div class="box">
+                    <div class="box-header">
+                        <h3 class="box-title"> Available plugins  </h3>
+                        <button class="btn btn-success pull-right" onclick="Plugins.upgrade();">Upgrade all</button>
+                    </div>
+                    <div class="box-body">                
+                        <div class="table-responsive" id="plugins_table_container">
+                            <div style="text-align: center;vertical-align: middle;font-size: 3em;font-weight: bold;color: lightgray;width: 100%;">Loading plugin data..</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div  id="panelWorking" class="panel-working">
+        <img src="static/loading.gif">
+    </div>
+    
+{% endblock %}

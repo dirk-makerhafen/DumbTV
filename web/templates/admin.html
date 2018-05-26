@@ -1,0 +1,422 @@
+{% extends 'adminlte/base.html' %}
+
+{% block content_header %}
+<script>
+
+
+    function StatsClass(){
+        var self = this;
+        self.timeoutHandle = undefined;
+
+        
+        self.reload = function(){
+            apiCall({ api: "admin", command: "getPlaybackStats"}, self.reload_success, undefined, true)
+        }
+        self.clear = function(){
+            apiCall({ api: "admin", command: "clearStats"}, self.reload, undefined, false)
+        }
+        self.recreate = function(){
+            apiCall({ api: "admin", command: "recreateStats"}, self.reload, undefined, false)
+        }
+        self.reload_success = function(data){
+            $('#stats_videos_found').html(data.data["upcoming:videos_found"]);
+            $('#stats_videos_added').html(data.data["upcoming:videos_added"]);
+            $('#stats_videos_skipped').html(data.data["upcoming:videos_skipped"]);
+            $('#playback_errors').html(data.data["playback:error"]);
+            $('#playback_errorrate').html(data.data["playback:errorrate"]);
+            $('#duration_added').html(data.data["upcoming:duration_added"]);
+            $('#duration_played').html(data.data["playback:duration_played"]);
+            $('#duration_playrate').html(data.data["playback:duration_playedrate"]);
+            $('#playback_started').html(data.data["playback:started"]);
+            $('#playback_ended').html(data.data["playback:ended"]);
+            
+            if(self.timeoutHandle != undefined){
+                window.clearTimeout(self.timeoutHandle);
+            }
+            self.timeoutHandle = setTimeout(function(){
+                self.reload();
+            }, 10000)
+        }        
+    }
+
+
+    function CacheClass(){
+        var self = this;
+        self.timeoutHandle = undefined;
+
+        
+        self.reload = function(){
+            apiCall({ api: "admin", command: "getCacheStats"}, self.reload_success, undefined, true)
+        }
+        self.clear = function(){
+            apiCall({ api: "admin", command: "clearCache"}, self.reload, undefined, false)
+        }
+        self.reload_success = function(data){
+            $('#cached_items_count').html(data.data["cached_items"]);
+            if(self.timeoutHandle != undefined){
+                window.clearTimeout(self.timeoutHandle);
+            }
+            self.timeoutHandle = setTimeout(function(){
+                self.reload();
+            }, 10000)
+        }    
+    
+    }
+    
+    
+    function OverviewClass(){
+        var self = this;
+        self.timeoutHandle = undefined;
+
+        
+        self.reload = function(){
+            apiCall({ api: "admin", command: "getOverview"}, self.reload_success, undefined, true)
+        }
+        
+        self.reload_success = function(data){
+            $('#status_count_users').html(data.data["count_users"]);
+            $('#status_count_users_loggedin').html(data.data["count_users_loggedin"]);
+            $('#status_count_channels').html(data.data["count_channels"]);
+            $('#status_count_upcoming').html(data.data["count_upcoming"]);
+            $('#status_count_plugins_installed').html(data.data["count_plugins_installed"]);
+            
+            if(self.timeoutHandle != undefined){
+                window.clearTimeout(self.timeoutHandle);
+            }
+            self.timeoutHandle = setTimeout(function(){
+                self.reload();
+            }, 5000);        
+        }
+        
+        
+    }
+    
+    
+    function UsersClass(){
+        var self = this;
+        
+        self.reload = function(){
+                apiCall({ api: "admin", command: "getUsers",}, self.reload_success, undefined, true)
+        }
+        
+        self.reload_success = function(data){ 
+            self.users = data.users;
+            var users_table_template = document.getElementById('users_table_template').innerHTML;
+            $("#user_table_container").html(Mustache.render( users_table_template ,{ users: data.users }));  
+        }
+        
+        self.show_add_modal = function(){
+            $("#add_user_modal").modal();
+        }
+        
+        self.save_add_modal = function(){
+            var username = $("#add_user_modal_username")[0].value
+            var password = $("#add_user_modal_password")[0].value
+            var email = $("#add_user_modal_email")[0].value
+            if(username == ""){ return; }
+            if(password == ""){ return; }
+            if(email == ""){ return; }
+            apiCall({ api: "admin", command: "addUser", username: username, password: password, email: email}, self.reload);
+        }
+        
+        self.delete = function(user_id){
+            apiCall({ api: "admin", command: "deleteUser", user_id: user_id}, self.reload);
+        }
+        
+    }
+    
+    
+
+    function LoaderClass(){
+        var self = this;
+        self.timeoutHandle = undefined;
+        
+        self.reload = function(){
+            apiCall({ api: "admin", command: "loaderStatus"}, self.reload_success, undefined, true);
+        }
+        
+        self.reload_success = function(data){ 
+            if(data.loader.isActive){
+                $('#status_loader_status').html("Active");
+            }else{
+                $('#status_loader_status').html("Stopped");
+            }
+            
+            $('#status_channel_threads').html(data.loader.channel_threads);
+            $('#status_crawler_threads').html(data.loader.crawler_threads);
+            var loader_active_requests_template = document.getElementById('loader_active_requests_template').innerHTML;
+            for (sindex = 0; sindex < data.loader.items.length; ++sindex) {
+                for (pindex = 0; pindex < data.loader.items[sindex].path.length; ++pindex) {
+                    data.loader.items[sindex].path[pindex]["cleanname"] = cleanstring(data.loader.items[sindex].path[pindex][1]);
+                }
+            }
+            $("#loader_active_requests_container").html(Mustache.render( loader_active_requests_template ,{ items: data.loader.items }));  
+            if(self.timeoutHandle != undefined){
+                window.clearTimeout(self.timeoutHandle);
+            }
+            self.timeoutHandle = setTimeout(function(){
+                self.reload();
+            }, 5000);
+        }
+        
+        self.start = function(){
+            apiCall({ api: "admin", command: "startLoader"}, self.reload);
+            if(self.timeoutHandle != undefined){
+                window.clearTimeout(self.timeoutHandle);
+            }
+        }
+        
+        self.stop = function(){
+            apiCall({ api: "admin", command: "stopLoader"}, self.reload);
+            if(self.timeoutHandle != undefined){
+                window.clearTimeout(self.timeoutHandle);
+            }
+        }
+    }
+    
+    Mustache.tags = ['[[', ']]'];
+    var Loader = new LoaderClass();
+    var Users = new UsersClass();
+    var Overview = new OverviewClass();
+    var Cache = new CacheClass();
+    var Stats = new StatsClass();
+    Loader.reload();
+    Users.reload();
+    Overview.reload();
+    Cache.reload();
+    Stats.reload();
+    document.getElementById("users-navbar").classList.add("active");
+
+</script>    
+{% endblock %}
+
+
+{% block content %}
+
+<script type="x-tmpl-mustache" id="loader_active_requests_template">
+    <table class="table no-margin">
+        <thead>
+            <tr>
+                <th>Addon</th>
+                <th>Path</th>
+                <th>Title</th>
+            </tr>
+        </thead>
+        <tbody>
+            [[#items]]
+            <tr>
+                <td>[[addon]]</td>
+                <td>[[#path]][[cleanname]]/[[/path]]</td>
+                <td>[[title]]</td>
+                <td></td>
+            </tr>
+            [[/items]]
+        </tbody>
+    </table>
+</script>
+
+<script type="x-tmpl-mustache" id="users_table_template">
+    <table id="user_table" class="table no-margin ">
+        <thead>
+            <tr>
+                <th>Id</th>
+                <th>Username</th>
+                <th>Email</th>
+                <th>Adult</th>
+                <th>Last login</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            [[#users]]
+                <tr>
+                    <td> [[ id ]] </td>
+                    <td> [[ username ]] </td>
+                    <td> [[ email ]] </td>
+                    <td> [[ allowAdult ]] </td>
+                    <td> [[ last_login ]] </td>
+                    <td> <button class="btn btn-warning" onclick="Users.delete([[ id ]])">Delete</button> </td>
+                </tr>
+            [[/users]]
+        </tbody>
+    </table>
+</script>
+
+    
+    <div class="row">
+        <div class="col-md-3 col-sm-6 col-xs-12">
+            <div class="info-box">
+                <span class="info-box-icon bg-green"><i class="ion ion-ios-people"></i></span>
+                <div class="info-box-content">
+                    <span class="info-box-text">Users</span>
+                    <span class="info-box-number">
+                        <span id="status_count_users"> </span><small style="font-weight:400;padding-left:5px;">Existing</small><br>
+                        <span id="status_count_users_loggedin"> </span><small style="font-weight:400;padding-left:5px;">Logged in</small>
+                    </span>                    
+                </div>
+            </div>
+        </div>    
+        <div class="col-md-3 col-sm-6 col-xs-12">
+            <div class="info-box">
+                <span class="info-box-icon bg-aqua"><i class="ion ion-ios-gear"></i></span>
+                <div class="info-box-content">
+                    <span class="info-box-text">Loader<b style="padding-left:5px;" id="status_loader_status"></b></span> 
+                    <span class="info-box-number">
+                        <span id="status_channel_threads"> </span><small style="font-weight:400;padding-left:5px;">Channels crawling</small><br>
+                        <span id="status_crawler_threads"> </span><small style="font-weight:400;padding-left:5px;">Requests</small>
+                    </span>
+                </div>
+            </div>
+        </div>               
+        <div class="col-md-3 col-sm-6 col-xs-12">
+            <div class="info-box">
+                <span class="info-box-icon bg-red"><i class="ion ion-images"></i></span>
+                <div class="info-box-content">
+                    <span class="info-box-text">Channels</span>
+                    <span class="info-box-number" id="status_count_channels"></span>
+                </div>
+            </div>
+        </div> 
+        <div class="col-md-3 col-sm-6 col-xs-12">
+            <div class="info-box">
+                <span class="info-box-icon bg-blue"><i class="ion ion-outlet"></i></span>
+                <div class="info-box-content">
+                    <span class="info-box-text">Plugins Installed</span>
+                    <span class="info-box-number" id="status_count_plugins_installed"></span>
+                </div>
+            </div>
+        </div> 
+          
+     
+          
+    </div>
+    
+    
+    <div class="row">
+        <div class="col-md-6">
+            <div class="box">
+                <div class="box-header">
+                    <h3 class="box-title"> Stats </h3>
+                    <button class="btn btn-success pull-right" onclick='Stats.clear()' > Clear Stats </button>
+                    <button class="btn btn-success pull-right" onclick='Stats.recreate()' style="margin-right: 20px;"> Recreate Stats </button>
+                </div>
+                <div class="box-body">                
+                    <dl>
+                        <dt> Videos found       </dt> <dd id="stats_videos_found">  </dd>
+                        <dt> Videos added       </dt> <dd id="stats_videos_added">  </dd>
+                        <dt> Videos skipped     </dt> <dd id="stats_videos_skipped"></dd>
+                        <dt> Playback errors    </dt> <dd id="playback_errors">     </dd>
+                        <dt> Playback error rate </dt> <dd id="playback_errorrate">  </dd>
+                        <dt> Duration added     </dt> <dd id="duration_added">      </dd>
+                        <dt> Duration played    </dt> <dd id="duration_played">     </dd>
+                        <dt> Duration playback rate  </dt> <dd id="duration_playrate">   </dd>
+                        <dt> Playbacks started  </dt> <dd id="playback_started">    </dd>
+                        <dt> Playbacks ended    </dt> <dd id="playback_ended">      </dd>
+                    </dl>
+                </div>
+                <!-- /.box-body -->
+            </div>    
+        </div>   
+    
+    
+    <div class="col-md-6">
+            <div class="box">
+                <div class="box-header">
+                    <h3 class="box-title"> Cache </h3>
+                    <button class="btn btn-success pull-right" onclick='Cache.clear();'> Clear cache </button>
+                </div>
+                <div class="box-body">                
+                    <dl>
+                        <dt>Cached Items</dt>
+                        <dd id="cached_items_count">2323</dd>
+                    </dl>
+                </div>
+                <!-- /.box-body -->
+            </div>    
+        
+            <div class="box">
+                <div class="box-header">
+                    <h3 class="box-title"> Existing Users  </h3>
+                    <button class="btn btn-success pull-right" onclick='Users.show_add_modal();'> Add User </button>
+                </div>
+                <div class="box-body">                
+                    <div class="table-responsive" id="user_table_container">
+                        Loading..
+                    </div>
+                </div>
+                <!-- /.box-body -->
+            </div>    
+        </div>       
+       
+    </div>
+    
+    <div class="row">
+
+    </div>
+
+    <div class="row">
+        <div class="col-md-12">
+            <div class="box">
+                <div class="box-header">
+                    <h3 class="box-title"> Upcoming Loader latest requests  </h3>
+                    <button class="btn btn-success pull-right" onclick='Loader.start()'> Start Loader </button>
+                    <button class="btn btn-success pull-right" onclick='Loader.stop()' style="margin-right: 20px;"> Stop Loader </button>                    
+                </div>
+                <div class="box-body">                
+                    <div class="table-responsive" id="loader_active_requests_container">
+
+                    </div>
+                </div>
+                <!-- /.box-body -->
+            </div>    
+        </div>
+    </div>
+
+    <!-- User add modal -->
+    <div id="add_user_modal" class="modal fade" role="dialog">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <button type="button" class="close" data-dismiss="modal">&times;</button>
+                    <h4 class="modal-title">Add Users</h4>
+                </div>
+                
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="add_user_modal_username">Username</label>
+                        <input type="text" class="form-control" id="add_user_modal_username" placeholder="Enter username">
+                    </div>
+                    <div class="form-group">
+                        <label for="add_user_modal_password">Password</label>
+                        <input type="text" class="form-control" id="add_user_modal_password" placeholder="Enter pasword">
+                    </div>
+                    <div class="form-group">
+                        <label for="add_user_modal_email">Email address</label>
+                        <input type="email" class="form-control" id="add_user_modal_email" placeholder="Enter email">
+                    </div>                 
+                    <button type="submit" class="btn btn-primary" onclick="Users.save_add_modal();">Save</button>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>       
+    <!-- /User add  modal -->    
+    
+    
+    <div  id="panelWorking" class="panel-working">
+        <img src="static/loading.gif">
+    </div>    
+
+    
+    <script>
+        $(document).ready(function() {
+            $('#user_table').DataTable( {
+                order: [ [ 1, "asc" ] ],
+                stateSave: true,
+            });
+        });
+    </script>  
+       
+{% endblock %}
