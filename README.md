@@ -19,12 +19,12 @@ pip install django django_extensions django_widget_tweaks django_crispy_forms re
 
 To install DumbTV, first clone this repository:
 ```Shell
-git clone https://github.com/dirk-attraktor/dumbTV.git
+git clone https://github.com/dirk-attraktor/DumbTV.git
 ```
 
 Then, clone kodino
 ```Shell
-cd dumpTV
+cd DumbTV
 git clone https://github.com/dirk-attraktor/kodino.git
 ```
 
