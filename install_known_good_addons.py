@@ -9,6 +9,7 @@ from kodino import kodinoPlugins
 # some known good plugins, add more! 
 
 addons = '''
+plugin.video.khanacademy
 plugin.video.1channel
 plugin.video.3satmediathek
 plugin.video.7tvneu
