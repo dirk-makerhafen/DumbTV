@@ -5,7 +5,10 @@ import threading
 import subprocess
 import redis
 import traceback
-import queue
+try:
+    import queue
+except:
+    import Queue as queue
 import random
 import redis
 from django.shortcuts import render

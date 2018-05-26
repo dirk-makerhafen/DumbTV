@@ -36,7 +36,7 @@ python kodino/kodinoPlugins.py upgrade
 
 Install some known good plugins.
 ```Shell
-python install_known_good_plugins.py
+python install_known_good_addons.py
 ```
 
 Create database
