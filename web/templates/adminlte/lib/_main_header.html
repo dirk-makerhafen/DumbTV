@@ -1,0 +1,26 @@
+{% load adminlte_helpers i18n %}
+
+<nav class="navbar navbar-expand navbar-light bg-yellow" style=" height: 50px;">
+    <div class="navbar-collapse " id="navbarSupportedContent">
+        <ul class="navbar-nav mr-auto">
+                <li id="player-navbar" class="nav-item">
+                    <a class="nav-link" href="/player"><img style="width:35px;height:35px;margin-top: -10px;" src="/static/tv-png-icon.jpg"/> <b> Watch </b></span></a>
+                </li>
+                <li id="channels-navbar" class="nav-item">
+                    <a class="nav-link" href="/channels">My Channels</span></a>
+                </li>
+                {% if request.user.is_superuser %}
+                <li  id="plugin-navbar" class="nav-item">
+                    <a class="nav-link" href="/plugins">Plugins</a>
+                </li>
+                <li id="users-navbar" class="nav-item">
+                    <a class="nav-link" href="/admin">Admin</a>
+                </li>
+                {% endif %}
+        </ul>
+        <div class="nav navbar-nav navbar-right"> 
+           <a href="/logout" class="navbar-link" style="color: #444 !important;">  {{ request.user.username | title }} <i class="fa fa-sign-out"> </i> </a>
+        </div>
+    </div>
+</nav>
+

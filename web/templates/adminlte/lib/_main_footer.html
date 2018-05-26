@@ -1,0 +1,12 @@
+<footer class="main-footer">
+    <div class="pull-right hidden-xs">
+        {% block footer_right %}
+            
+        {% endblock %}
+    </div>
+
+    {% block footer_left %}
+        {% block legal %}
+        {% endblock %}
+    {% endblock %}
+</footer>

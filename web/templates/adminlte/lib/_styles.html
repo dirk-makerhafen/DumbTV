@@ -1,0 +1,514 @@
+{% load static %}
+
+{% block styles %}
+<link rel="stylesheet" type="text/css" href="https://cdnjs.cloudflare.com/ajax/libs/ionicons/2.0.1/css/ionicons.css">
+<link rel="stylesheet" type="text/css" href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.1/css/bootstrap.min.css">
+<link rel="stylesheet" type="text/css" href="https://stackpath.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css">
+<link rel="stylesheet" type="text/css" href="{% static "admin-lte/dist/css/AdminLTE.css" %}">
+<link rel="stylesheet" type="text/css" href="{% static "admin-lte/dist/css/skins/_all-skins.min.css" %}">
+<link rel="stylesheet" type="text/css" href="{% static "icheck/skins/square/blue.css" %}">
+<link rel="stylesheet" type="text/css" href="{% static "conflicts/conflicts.css" %}">
+<link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.10.16/css/jquery.dataTables.min.css"></link>
+
+<style>
+
+    .content-wrapper {
+        height:100%;
+        min-height:100% !important;
+    }
+    .navbar .navbar-collapse {
+        text-align: center;
+    }
+
+    .main-header {
+        margin-bottom : -1px;
+    }
+    .itemicon {
+        color: lightgray;
+        font-size:1.5em;
+    }
+    
+    .modal-dialog.modal-90p {
+        width: 90%;
+        max-width: 90%;
+        margin: 30px auto;
+    }
+    
+    .modal-subheadline {
+       color:lightgray;
+       margin-top:-14px;
+    }    
+    .modal-subheadline_text {
+       background-color:white;
+       padding-left:10px;
+       padding-right:10px;
+    }
+    .modal_row {
+        padding-bottom: 20px;
+    }
+    
+    #browser_current_path  {
+        vertical-align: middle;
+        font-weight: 600;
+        font-size: 1.1em;
+        margin-top: 6px;
+        color: gray;
+    }
+    
+    .channelrow {
+        border-bottom: 1px solid lightgray;
+    }
+    
+    .browser_channelsource_filter  {
+        padding-bottom: 10px;
+    }
+    .even {
+        background-color : #f9f9f9;
+    }
+    .odd {
+        background-color : white;
+    }
+    .selectedChannel {
+        background-color: #f0fff0;
+    }
+    .nopad {
+        padding-left:0px;
+        padding-right:0px;
+    }
+    .itemrow:hover{
+        background-color: #f0fff0;
+    }
+    .itemrow {
+        margin-bottom:2px;
+        min-height:40px;
+    }
+    
+    
+    .modal-dialog  {
+        width: 90%;
+    }
+    
+    .move_ankor {
+        opacity:0.5; 
+        height: 168px; 
+        width: 14px; 
+        background-color:#f2f2f2; 
+        border-radius: 3px; 
+        z-index: 999; 
+        float: right; 
+        text-align:center; 
+        font-size:1em; 
+        padding-top: 70px;
+    }
+    
+    .player-overlay {
+        z-index:9999;
+        -o-transition:0.5s;
+        -ms-transition:0.5s;
+        -moz-transition:0.5s;
+        -webkit-transition:0.5s;
+        transition:0.5s;   
+        opacity:0.999;
+        user-select:none;
+        width:100%;
+    }  
+    .overlay-item{
+        z-index: 9999;
+    }   
+   
+    #overlay-error {
+        width:100%;
+        text-align:center;
+        font-size:5vw;
+        top:25%;
+        font-weight:bold;
+        opacity:0.7;
+        position:absolute;
+        z-index: -1;
+    }  
+    
+    #overlay-skip {
+        cursor:pointer;
+        width:20%;
+        //height:100px;
+        padding-left:20px;
+        opacity:0.0;
+        text-align:left;
+        font-size:5vw;
+        position:absolute;
+        bottom:50px;
+        font-weight:bold;
+        z-index:999999;
+        
+    }
+    #overlay-skip:hover {
+        opacity:0.7;
+    }           
+    
+    
+    #overlay-topinfo {
+        width:100%;
+        height:100px;
+        text-align:left;
+        font-size:2.3vw;
+        opacity:0.0;
+        padding-top:20px;
+        padding-left:20px;
+        font-weight:bold;
+        z-index:999999;
+    }  
+    #overlay-topinfo:hover {
+        opacity:0.999;
+    }     
+    
+    #overlay-channelindex {
+        width:100px;
+        height:100px;
+        float:right;
+        text-align:right;
+        font-weight:bold;
+        padding:20px;
+        position: relative;
+        top:-100px;
+        font-size:5vw;
+        opacity:0.99;
+    }
+    
+    .updownarrows {
+        cursor:pointer;
+        font-size:10vw;
+        //width:200px;
+        //height:90%;
+        position:absolute;
+        opacity:0;
+        top:30%;
+        width:15%;
+        z-index:999999;
+    }
+    
+    .updownarrows:hover {
+        opacity:0.7;
+    }      
+
+    
+    #overlay-arrow-left {
+        text-align:left;
+    }
+    
+    #overlay-arrow-right {
+        text-align:right;
+    }
+    
+    .vjs-big-play-button {
+        display:none !important;
+    }
+    .vjs-progress-control {
+        display:none !important;
+    }
+    .panel-working {
+        display:none;
+        z-index:99999;
+        position:fixed;
+        top:20px;
+        width:100%;
+        margin-bottom:0px;
+        height:100%;
+        opacity:0.2;
+        font-size:15em;
+        text-align:center;
+    }
+    .panel-working > img {
+        top:100px;
+        width:30%;
+        position:relative;
+    }
+    
+    .nosources {
+        color:lightgray;
+    }
+    .vjs-resize-manager {
+        display: none;
+    }
+    
+    
+    /*
+        #### Channel upcoming items in channel overview
+    */  
+    
+
+    .channel_upcoming_boxes {
+        height:166px;
+        overflow:auto;
+        overflow-y:hidden;
+        /*white-space:nowrap;*/
+        display:inline-flex;
+    } 
+    
+    .nicescoll::-webkit-scrollbar {
+        width: 5px;
+        height: 5px;
+    }
+    .nicescoll::-webkit-scrollbar-track {
+        background: #cecece; 
+    } 
+    .nicescoll::-webkit-scrollbar-thumb {
+        background: #aaa; 
+    }
+    .nicescoll::-webkit-scrollbar-thumb:hover {
+        background: #666; 
+    }
+    
+    .channel_upcoming_box { 
+        width:180px;
+        min-width:180px;
+        height:140px;
+        display:inline;
+        float:left;
+        margin-left:3px;
+        margin-right:3px;
+    }
+    
+    .channel_upcoming_box_imgicon  {
+        border-radius:3px;
+        background-color:black;
+    }    
+    
+    .channel_upcoming_box_img { 
+        height:102px;
+        min-height:102px;
+        max-width:100%;
+        margin-left:auto;
+        margin-right:auto;
+        display:none;
+        border-radius:3px;
+    }
+    
+    .channel_upcoming_box_icon { 
+        height:102px;
+        min-height:102px;
+        max-width:100%;
+        margin-left:auto;
+        margin-right:auto;
+        display:block;
+        border-radius:3px;
+        text-align:center;
+        font-size:2em;
+        padding-top:25px;
+    }
+    
+    .channel_upcoming_box_text_skip { 
+        margin-right:5px;
+        cursor:pointer;
+        font-weight:bold;
+        position:absolute;
+        color:#f0f0f0;
+        font-size:1.5em;
+        text-align:right;
+        padding-right:5px;
+        margin-left:130px;
+        -o-transition:0.2s;
+        -ms-transition:0.2s;
+        -moz-transition:0.2s;
+        -webkit-transition:0.2s;
+        transition:0.2s;
+        opacity:0.8;
+        height:50px;
+        width:50px;
+        user-select: none;        
+    } 
+    
+    .channel_upcoming_box_text_skip:hover {
+        opacity:0.8;
+    }        
+    
+    .channel_upcoming_box_text { 
+        height:60px;
+        overflow:hidden;
+        font-size:0.9em;
+        text-align:center;
+        white-space:normal;
+        word-break:break-word;          
+    }                
+    
+              
+    .channel_upcoming_box_text_title { 
+
+    }   
+
+      
+    /*
+        #### Channel upcoming items in browser
+    */ 
+    
+    #browser_channel_upcoming {
+        display: inline-flex;
+            overflow-y: hidden;
+            overflow:auto;
+    }
+    
+    .browser_channel_upcoming_box {
+        width:120px;
+        min-width:120px;
+        height:128px;
+        display:inline;
+        float:left;
+        margin:2px;
+    }
+    
+    .browser_channel_upcoming_box_imgicon {
+        background-color:black;
+        height:68px;
+        border-radius:3px;
+    }
+    
+    .browser_channel_upcoming_box_img {
+        height:68px;
+        min-height:68px;
+        max-width:100%;
+        margin-left:auto;
+        margin-right:auto;
+        display:none;
+        border-radius:3px;
+    }
+    
+    .browser_channel_upcoming_box_icon {
+        height:68px;
+        max-width:100%;
+        margin-left:auto;
+        margin-right:auto;
+        display:block;
+        border-radius:3px;
+        text-align:center;
+        padding-top:20px;
+    }
+    
+    .browser_channel_upcoming_box_text_skip { 
+        margin-right:5px;
+        cursor:pointer;
+        font-weight:bold;
+        position:absolute;
+        color:#f0f0f0;
+        font-size:1.0em;
+        text-align:center;
+        width:40px;
+        margin-left:90px;
+        padding-right:5px;
+        -o-transition:0.2s;
+        -ms-transition:0.2s;
+        -moz-transition:0.2s;
+        -webkit-transition:0.2s;
+        transition:0.2s;
+        opacity:0.8;
+        height:40px;
+        user-select: none;
+    } 
+    
+    .browser_channel_upcoming_box_text_skip:hover {
+        opacity:0.8;
+    }   
+    
+    .browser_channel_upcoming_box_text { 
+        height:60px;
+        font-size:0.8em;
+        text-align:center;
+        overflow: hidden;
+    }
+    
+    .browser_channel_upcoming_none { 
+        color:lightgray;
+        text-align:center;
+    }    
+    
+    
+    
+    /*
+        #### Browser Items 
+    */
+    
+    .browseable_item_box {
+        cursor:pointer;
+        border-radius: 3px;
+        padding-bottom:5px;
+    }
+    
+    .browseable_item_box:hover {
+        background-color:#f7f7f7;
+    }
+
+    
+    .browseable_item_box_folder_stats_overlay {
+        position: absolute;
+        width: 100%;
+        font-size:0.9em;
+        background-color:#fffa;
+        text-align:center;
+        height:90px;
+        display:none;
+        font-weight:600;
+    }
+    
+    .browseable_item_box_image {
+        max-height:90px;
+        max-width:100%;
+        margin-left:auto;
+        margin-right:auto;
+        display:block;
+    }
+    .browseable_item_box_icon {
+        height:90px;
+        display:none;
+        text-align:center;
+        font-size:2em;
+        padding-top:15px;
+    }    
+    .browseable_item_box_text { 
+        height:70px;
+        overflow: hidden;
+        font-size:0.9em;
+        text-align:center;
+        word-break:break-word;
+        user-select: none;
+    }
+    
+    .browseable_item_box_video_play { 
+        margin-right:5px;
+        cursor:pointer;
+        padding-left: 10px;
+        padding-right: 10px;
+       
+        font-weight:bold;
+        position:absolute;
+        color:#a0a0a0;
+        font-size:1.2em;
+        text-align:center;
+        width:100%;
+        -o-transition:0.2s;
+        -ms-transition:0.2s;
+        -moz-transition:0.2s;
+        -webkit-transition:0.2s;
+        transition:0.2s;
+        opacity:0.0;
+        height:50px;
+        left:0px;
+        user-select:none;
+    } 
+    
+    .browseable_item_box_video_play:hover {
+        opacity:0.8;
+    }
+        
+    .browseable_item_searchbox {
+        width:280px;
+        height:150px;
+        float:left;
+        cursor:pointer;
+        margin:5px;
+    }
+    
+    
+
+</style>
+
+
+
+{% endblock %}
