@@ -117,6 +117,15 @@ def api(request):
          
     api = request.POST.get("api", "")
     
+    try:
+        request.user.settings
+    except: 
+        print("User %s has not settings, creating" % request.user.username)
+        settings = models.UserSetting()
+        settings.user = request.user
+        settings.allowAdult = True;
+        settings.save()
+    
     if api == "admin":
         return _api_admin(request)
     
