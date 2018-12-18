@@ -16,7 +16,7 @@ import os
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LOGIN_REDIRECT_URL = 'channels_index'
 LOGIN_URL = '/login/'
-LOGIN_EXEMPT_URLS = ["/signup",]
+LOGIN_EXEMPT_URLS = ["signup",]
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/1.8/howto/deployment/checklist/
