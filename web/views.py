@@ -109,7 +109,7 @@ def api(request):
         upcomingLoader.start()
     global kodinoRoot 
     if kodinoRoot == None:
-        kodinoRoot = kodino.Kodino()
+        kodinoRoot = kodino.Kodino(request.user.username)
     global stats 
     if stats == None:
         stats = Stats()
