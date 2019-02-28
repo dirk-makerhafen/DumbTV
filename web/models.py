@@ -213,7 +213,8 @@ class Upcoming(models.Model):
         if kodinoPlugin == None:
             kodinoPlugin = kodinoPlugins.KodinoPlugins()
         addon = kodinoPlugin.getInstalledById(self.addon)
-        k = kodinoItem.KodinoItem( addon, self.url, self.title, "file", self.thumbnailImage, False, None)    
+        
+        k = kodinoItem.KodinoItem( addon, self.url, self.title, "file", self.thumbnailImage, False, parent = None, username = self.channel.owner.username)
         return k.getPlaybackUrl()
         
         
